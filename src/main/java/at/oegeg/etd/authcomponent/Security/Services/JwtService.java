@@ -3,6 +3,7 @@ package at.oegeg.etd.authcomponent.Security.Services;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ import java.util.function.Function;
 import static at.oegeg.etd.sharedcomponent.Constants.Constants.EXPIRATIONDATE;
 import static at.oegeg.etd.sharedcomponent.Constants.Constants.GETSIGNINGKEY;
 
+@ComponentScan(basePackages = "at.oegeg.etd.sharedcomponent.Constants")
 @Service
 public class JwtService
 {
