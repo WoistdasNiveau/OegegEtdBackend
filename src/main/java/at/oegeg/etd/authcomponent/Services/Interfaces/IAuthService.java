@@ -14,6 +14,10 @@ public interface IAuthService
     // == mutations ==
     void CreateUser(@GraphQLArgument(name = "user") UserRequest user);
     void SetRole(@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber, @GraphQLArgument(name = "role") Role role);
+
+    AuthenticationResponse RemoveRole(@GraphQLArgument(name = "emailOrTelephoneNumber") String emailOrTelephoneNumber,
+                                      @GraphQLArgument(name = "role") Role role,
+                                      @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
     AuthenticationResponse ChangeEmail(@GraphQLArgument(name = "oldEmail") String oldEmail,
                                        @GraphQLArgument(name = "newEmail") String newEmail,
                                        @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);

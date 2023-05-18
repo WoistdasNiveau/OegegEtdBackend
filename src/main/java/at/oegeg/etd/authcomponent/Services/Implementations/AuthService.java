@@ -66,6 +66,24 @@ public class AuthService implements IAuthService
     }
 
     @Override
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @GraphQLMutation(name = "RemoveRole")
+    public AuthenticationResponse RemoveRole(@GraphQLArgument(name = "emailOrTelephoneNumber") String emailOrTelephoneNumber,
+                                             @GraphQLArgument(name = "role") Role role,
+                                             @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
+    {
+        UserEntity user = _userRepository.findByEmailOrTelephoneNumber(emailOrTelephoneNumber).orElseThrow();
+        user.getRoles().remove(role);
+        _userRepository.save(user);
+
+        InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER));
+
+        return AuthenticationResponse.builder()
+                .token(_jwtService.GenerateToken(user))
+                .build();
+    }
+
+    @Override
     @GraphQLMutation(name = "ChangeEmail")
     @PreAuthorize("hasRole('ROLE_USER')")
     public AuthenticationResponse ChangeEmail(@GraphQLArgument(name = "oldEmail") String oldEmail,
@@ -81,7 +99,6 @@ public class AuthService implements IAuthService
         String token = _jwtService.GenerateToken(user);
         return AuthenticationResponse.builder()
                 .token(token)
-                .roles(user.getRoles())
                 .build();
     }
     @Override
@@ -100,7 +117,6 @@ public class AuthService implements IAuthService
         String token = _jwtService.GenerateToken(user);
         return AuthenticationResponse.builder()
                 .token(token)
-                .roles(user.getRoles())
                 .build();
     }
 
@@ -133,7 +149,6 @@ public class AuthService implements IAuthService
             String token = _jwtService.GenerateToken(user);
             return AuthenticationResponse.builder()
                     .token(token)
-                    .roles(user.getRoles())
                     .build();
         }
         throw new Exception("telephone Numbers or Emails do not align");
@@ -151,7 +166,6 @@ public class AuthService implements IAuthService
         String token = _jwtService.GenerateToken(user);
         return AuthenticationResponse.builder()
                 .token(token)
-                .roles(user.getRoles())
                 .build();
     }
 
@@ -162,7 +176,14 @@ public class AuthService implements IAuthService
     {
         for (TokenBlackList token : _tokenBlackListRepository.findAll())
         {
-            if(_jwtService.IsTokenExpired(token.token))
+            try
+            {
+                if (_jwtService.IsTokenExpired(token.token))
+                {
+                    _tokenBlackListRepository.delete(token);
+                }
+            }
+            catch (Exception ex)
             {
                 _tokenBlackListRepository.delete(token);
             }

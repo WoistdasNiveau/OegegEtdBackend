@@ -19,7 +19,6 @@ import java.io.IOException;
 
 import static at.oegeg.etd.sharedcomponent.Constants.Constants.AUTHORIZATIONHEADER;
 
-
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter
