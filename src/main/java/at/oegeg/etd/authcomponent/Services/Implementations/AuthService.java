@@ -60,7 +60,7 @@ public class AuthService implements IAuthService
     @PreAuthorize("hasAnyRole('ROLE_ADMIN')")
     public void SetRole(@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber, @GraphQLArgument(name = "role") Role role)
     {
-        UserEntity user = _userRepository.findByEmailOrTelephoneNumber(emailOrTelefoneNumber).orElseThrow();
+        UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(emailOrTelefoneNumber).orElseThrow();
         user.getRoles().add(role);
         _userRepository.save(user);
     }
@@ -72,7 +72,7 @@ public class AuthService implements IAuthService
                                              @GraphQLArgument(name = "role") Role role,
                                              @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
     {
-        UserEntity user = _userRepository.findByEmailOrTelephoneNumber(emailOrTelephoneNumber).orElseThrow();
+        UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(emailOrTelephoneNumber).orElseThrow();
         user.getRoles().remove(role);
         _userRepository.save(user);
 
@@ -90,7 +90,7 @@ public class AuthService implements IAuthService
                             @GraphQLArgument(name = "newEmail") String newEmail,
                             @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
     {
-        UserEntity user = _userRepository.findByEmailOrTelephoneNumber(oldEmail).orElseThrow();
+        UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(oldEmail).orElseThrow();
         user.setEmail(newEmail);
         _userRepository.save(user);
 
@@ -108,7 +108,7 @@ public class AuthService implements IAuthService
                                        @GraphQLArgument(name = "newTelephoneNumber") String newTelephoneNumber,
                                        @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
     {
-        UserEntity user = _userRepository.findByEmailOrTelephoneNumber(oldTelephoneNumber).orElseThrow();
+        UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(oldTelephoneNumber).orElseThrow();
         user.setTelephoneNumber(newTelephoneNumber);
         _userRepository.save(user);
 
@@ -125,7 +125,7 @@ public class AuthService implements IAuthService
     @PreAuthorize("hasRole('ROLE_USER')")
     public void ChangeName(@GraphQLArgument(name = "telephoneNumberOrEmail") String telephoneNumberOrEmail, @GraphQLArgument(name = "newName") String newName)
     {
-        UserEntity user = _userRepository.findByEmailOrTelephoneNumber(telephoneNumberOrEmail).orElseThrow();
+        UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(telephoneNumberOrEmail).orElseThrow();
         user.setName(newName);
         _userRepository.save(user);
     }
@@ -140,7 +140,7 @@ public class AuthService implements IAuthService
         String extracted = _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
         if(extracted.equals(emailOrTelephoneNumber))
         {
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumber(emailOrTelephoneNumber).orElseThrow();
+            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(emailOrTelephoneNumber).orElseThrow();
             user.setPassword(_passwordEncoder.encode(newPassword));
             _userRepository.save(user);
 
@@ -162,7 +162,7 @@ public class AuthService implements IAuthService
     {
         _authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
-        UserEntity user = _userRepository.findByEmailOrTelephoneNumber(request.getEmail()).orElseThrow();
+        UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(request.getEmail()).orElseThrow();
         String token = _jwtService.GenerateToken(user);
         return AuthenticationResponse.builder()
                 .token(token)
@@ -190,7 +190,7 @@ public class AuthService implements IAuthService
         }
         try
         {
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumber("oliver01@kabsi.at").orElseThrow();
+            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName("oliver01@kabsi.at").orElseThrow();
         }
         catch (Exception ex)
         {
