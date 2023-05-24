@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-import static at.oegeg.etd.sharedcomponent.Constants.Constants.EXPIRATIONDATE;
 import static at.oegeg.etd.sharedcomponent.Constants.Constants.GETSIGNINGKEY;
 
 @ComponentScan(basePackages = "at.oegeg.etd.sharedcomponent.Constants")
@@ -37,15 +36,16 @@ public class JwtService
 
     public String GenerateToken(Map<String, Object> extraClaims, UserDetails userDetails)
     {
-        return "Bearer "+ Jwts
-                .builder()
-                .setClaims(extraClaims)
-                .setSubject(userDetails.getUsername())
-                .claim("roles", userDetails.getAuthorities())
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(EXPIRATIONDATE)
-                .signWith(GETSIGNINGKEY(), SignatureAlgorithm.HS256)
-                .compact();
+        String token = "Bearer "+ Jwts
+                    .builder()
+                    .setClaims(extraClaims)
+                    .setSubject(userDetails.getUsername())
+                    .claim("role", userDetails.getAuthorities())
+                    .setIssuedAt(new Date(System.currentTimeMillis()))
+                    .setExpiration(new Date(System.currentTimeMillis()+1000*60*60))
+                    .signWith(GETSIGNINGKEY(), SignatureAlgorithm.HS256)
+                    .compact();
+        return token;
     }
 
     public boolean IsTokenValid(String token, UserDetails userDetails)

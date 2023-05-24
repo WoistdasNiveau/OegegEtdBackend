@@ -3,11 +3,14 @@ package at.oegeg.etd.authcomponent.Services.Interfaces;
 import at.oegeg.etd.authcomponent.DataTransferObjects.Request.AuthenticationRequest;
 import at.oegeg.etd.authcomponent.DataTransferObjects.Response.AuthenticationResponse;
 import at.oegeg.etd.sharedcomponent.DataTransferObjects.Request.UserRequest;
+import at.oegeg.etd.sharedcomponent.DataTransferObjects.Response.UserResponse;
 import at.oegeg.etd.sharedcomponent.Entities.Enums.Role;
 import io.leangen.graphql.annotations.GraphQLArgument;
 import io.leangen.graphql.annotations.GraphQLRootContext;
 import io.leangen.graphql.spqr.spring.autoconfigure.DefaultGlobalContext;
 import org.springframework.web.context.request.ServletWebRequest;
+
+import java.util.List;
 
 public interface IAuthService
 {
@@ -32,4 +35,7 @@ public interface IAuthService
 
     // == queries ==
     AuthenticationResponse Authenticate(@GraphQLArgument(name="AuthenticationRequest") AuthenticationRequest request);
+    AuthenticationResponse ValidateToken(@GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
+    List<UserResponse> GetAllUsers();
+    UserResponse GetUser(@GraphQLArgument(name="nameEMailOrTelephoneNumber") String nameEmailOrTelephoneNumber);
 }

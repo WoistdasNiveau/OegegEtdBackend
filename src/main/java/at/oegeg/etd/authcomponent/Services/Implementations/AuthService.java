@@ -5,12 +5,19 @@ import at.oegeg.etd.authcomponent.DataTransferObjects.Response.AuthenticationRes
 import at.oegeg.etd.authcomponent.Security.Services.JwtService;
 import at.oegeg.etd.authcomponent.Services.Interfaces.IAuthService;
 import at.oegeg.etd.sharedcomponent.DataTransferObjects.Request.UserRequest;
+import at.oegeg.etd.sharedcomponent.DataTransferObjects.Request.WorkRequest;
 import at.oegeg.etd.sharedcomponent.DataTransferObjects.Response.UserResponse;
+import at.oegeg.etd.sharedcomponent.DataTransferObjects.Response.VehicleResponse;
+import at.oegeg.etd.sharedcomponent.DataTransferObjects.Response.WorkResponse;
 import at.oegeg.etd.sharedcomponent.Entities.Enums.Role;
 import at.oegeg.etd.sharedcomponent.Entities.TokenBlackList;
 import at.oegeg.etd.sharedcomponent.Entities.UserEntity;
+import at.oegeg.etd.sharedcomponent.Entities.VehicleEntity;
+import at.oegeg.etd.sharedcomponent.Entities.WorkEntity;
 import at.oegeg.etd.sharedcomponent.Repository.ITokenBlackListRepository;
 import at.oegeg.etd.sharedcomponent.Repository.IUserEntityRepository;
+import at.oegeg.etd.sharedcomponent.Repository.IVehicleRepository;
+import at.oegeg.etd.sharedcomponent.Repository.IWorkRepository;
 import io.leangen.graphql.annotations.GraphQLArgument;
 import io.leangen.graphql.annotations.GraphQLMutation;
 import io.leangen.graphql.annotations.GraphQLQuery;
@@ -28,6 +35,8 @@ import org.springframework.web.context.request.ServletWebRequest;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static at.oegeg.etd.sharedcomponent.Constants.Constants.AUTHORIZATIONHEADER;
 
@@ -43,6 +52,8 @@ public class AuthService implements IAuthService
     private final AuthenticationManager _authenticationManager;
     private final JwtService _jwtService;
     private final ITokenBlackListRepository _tokenBlackListRepository;
+    private final IVehicleRepository _vehicleRepository;
+    private final IWorkRepository _workRepository;
 
     // == mutations ==
     @Override
@@ -166,7 +177,41 @@ public class AuthService implements IAuthService
         String token = _jwtService.GenerateToken(user);
         return AuthenticationResponse.builder()
                 .token(token)
+                .name(user.getName())
                 .build();
+    }
+
+    @Override
+    @GraphQLQuery(name="ValidateToken")
+    @PreAuthorize("hasRole('ROLE_USER')")
+    public AuthenticationResponse ValidateToken(@GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
+    {
+        String username = _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
+        UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(username).orElseThrow();
+        String token = _jwtService.GenerateToken(user);
+        return AuthenticationResponse.builder()
+                .token(token)
+                .name(user.getName())
+                .build();
+    }
+
+    @Override
+    @GraphQLQuery(name="GetAllUsers")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public List<UserResponse> GetAllUsers()
+    {
+        List<UserResponse> response = UserEntitiesToResponses(_userRepository.findAll());
+        return response;
+    }
+
+    @Override
+    @GraphQLQuery(name="GetUser")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public UserResponse GetUser(@GraphQLArgument(name="nameEmailOrTelephoneNumber") String nameEmailOrTelephoneNumber)
+    {
+        UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(nameEmailOrTelephoneNumber).orElseThrow();
+        UserResponse response = UserEntityToResponse(user);
+        return response;
     }
 
 
@@ -215,14 +260,23 @@ public class AuthService implements IAuthService
 
     private UserResponse UserEntityToResponse(UserEntity user)
     {
-        return UserResponse.builder()
-                .name(user.getName())
-                .email(user.getEmail())
-                .telephoneNumber(user.getTelephoneNumber())
-                .responsibleFor(user.getResponsibleFor())
-                .createdWorks(user.getCreatedWorks())
-                .createdVehicles(user.getCreatedVehicles())
-                .build();
+        UserResponse.UserResponseBuilder builder = UserResponse.builder()
+                                                    .name(user.getName())
+                                                    .email(user.getEmail())
+                                                    .telephoneNumber(user.getTelephoneNumber())
+                                                    .responsibleFor(WorkEntityToWorkResponse(user.getResponsibleFor() != null ? user.getResponsibleFor() : new ArrayList<>()))
+                                                    .createdWorks(WorkEntityToWorkResponse(user.getCreatedWorks() != null ? user.getCreatedWorks() : new ArrayList<>()))
+                                                    .updatedWorks(WorkEntityToWorkResponse(user.getUpdatedWorks() != null ? user.getUpdatedWorks() : new ArrayList<>()))
+                                                    .createdVehicles(VehicleEntitiesToVehicleResponse(user.getCreatedVehicles() != null ? user.getCreatedVehicles() : new ArrayList<>()))
+                                                    .updatedVehicles(VehicleEntitiesToVehicleResponse(user.getUpdatedVehicles() != null ? user.getUpdatedVehicles() : new ArrayList<>()))
+                                                    .responsibleForCount(_workRepository.countAllByResponsiblePerson(user))
+                                                    .createdWorksCount(_workRepository.countAllByCreatedBy(user))
+                                                    .createdVehiclesCount(_vehicleRepository.countAllByCreatedBy(user))
+                                                    .updatedVehiclesCount(_vehicleRepository.countAllByUpdatedBy(user))
+                                                    .updatedWorksCount(_workRepository.countAllByUpdatedBy(user))
+                                                    .roles(user.getRoles());
+        return  builder.build();
+
     }
     private UserEntity UserRequestToEntity(UserRequest user)
     {
@@ -237,4 +291,84 @@ public class AuthService implements IAuthService
                 .roles(new ArrayList<>())
                 .build();
     }
+
+    private List<UserResponse> UserEntitiesToResponses(List<UserEntity> users)
+    {
+        return users.stream().map(u -> UserResponse.builder()
+                .name(u.getName())
+                .email(u.getEmail())
+                .telephoneNumber(u.getTelephoneNumber())
+                .responsibleForCount(_workRepository.countAllByResponsiblePerson(u))
+                .createdWorksCount(_workRepository.countAllByCreatedBy(u))
+                .createdVehiclesCount(_vehicleRepository.countAllByCreatedBy(u))
+                .updatedVehiclesCount(_vehicleRepository.countAllByUpdatedBy(u))
+                .updatedWorksCount(_workRepository.countAllByUpdatedBy(u))
+                .roles(u.getRoles())
+                .build()).collect(Collectors.toList());
+    }
+
+    private List<VehicleResponse> VehicleEntitiesToVehicleResponse(List<VehicleEntity> entities)
+    {
+        return entities.stream().map(e -> VehicleResponse.builder()
+                        .identifier(e.getIdentifier())
+                        .Number(e.getNumber())
+                        .Type(e.getType())
+                        .Status(e.getStatus())
+                        .Stand(e.getStand())
+                        .Priority(e.getPriority())
+                        .workCount(_workRepository.countWorkEntityByVehicle(e))
+                        .Works(WorkEntityToWorkResponse(e.getWorks())).build())
+                .collect(Collectors.toList());
+    }
+
+    private VehicleResponse VehicleEntityToVehicleResponse(VehicleEntity entity)
+    {
+        List<VehicleEntity> v = new ArrayList<>();
+        v.add(entity);
+        return (VehicleResponse)((List)VehicleEntitiesToVehicleResponse(v)).stream().findFirst().orElseThrow();
+    }
+    private List<WorkEntity> WorkRequestToWorkEntity(List<WorkRequest> requests)
+    {
+        List<WorkEntity> works = new ArrayList<WorkEntity>();
+        for(WorkRequest request : requests)
+        {
+            try
+            {
+                UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(request.getResponsiblePersonEmailOrTelephoneNumber()).orElseThrow();
+                works.add(WorkEntity.builder()
+                        .responsiblePerson(user)
+                        .description(request.getDescription())
+                        .priority(request.getPriority())
+                        .identifier(UUID.randomUUID())
+                        .build());
+            }
+            catch (Exception ex)
+            {
+                works.add(WorkEntity.builder()
+                        .description(request.getDescription())
+                        .priority(request.getPriority())
+                        .identifier(UUID.randomUUID())
+                        .build());
+            }
+        }
+        return works;
+    }
+
+    private List<WorkResponse> WorkEntityToWorkResponse(List<WorkEntity> entities)
+    {
+        List<WorkResponse> response = new ArrayList<>();
+        for(WorkEntity entity : entities)
+        {
+            WorkResponse r = WorkResponse.builder()
+                    .Description(entity.getDescription())
+                    .Priority(entity.getPriority())
+                    .identifier(entity.getIdentifier())
+                    .build();
+            if(entity.getResponsiblePerson() != null)
+                r.setResponsiblePerson(entity.getResponsiblePerson().getName());
+            response.add(r);
+        }
+        return response;
+    }
+
 }
