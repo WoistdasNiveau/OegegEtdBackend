@@ -1,7 +1,9 @@
 package at.oegeg.etd.authcomponent.Services.Interfaces;
 
 import at.oegeg.etd.authcomponent.DataTransferObjects.Request.AuthenticationRequest;
+import at.oegeg.etd.authcomponent.DataTransferObjects.Request.FirstLoginRequest;
 import at.oegeg.etd.authcomponent.DataTransferObjects.Response.AuthenticationResponse;
+import at.oegeg.etd.authcomponent.DataTransferObjects.Response.FirstLoginResponse;
 import at.oegeg.etd.sharedcomponent.DataTransferObjects.Request.UserRequest;
 import at.oegeg.etd.sharedcomponent.DataTransferObjects.Response.UserResponse;
 import at.oegeg.etd.sharedcomponent.Entities.Enums.Role;
@@ -15,7 +17,8 @@ import java.util.List;
 public interface IAuthService
 {
     // == mutations ==
-    void CreateUser(@GraphQLArgument(name = "user") UserRequest user);
+    FirstLoginResponse CreateUser(@GraphQLArgument(name = "user") UserRequest user);
+    FirstLoginResponse SetPassword(@GraphQLArgument(name="firstLoginRequest") FirstLoginRequest firstLoginRequest);
     void SetRole(@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber, @GraphQLArgument(name = "role") Role role);
 
     AuthenticationResponse RemoveRole(@GraphQLArgument(name = "emailOrTelephoneNumber") String emailOrTelephoneNumber,
