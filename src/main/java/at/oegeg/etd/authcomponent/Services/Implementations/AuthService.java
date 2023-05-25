@@ -197,7 +197,7 @@ public class AuthService implements IAuthService
 
     @Override
     @GraphQLQuery(name="GetAllUsers")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_LEADER')")
     public List<UserResponse> GetAllUsers()
     {
         List<UserResponse> response = UserEntitiesToResponses(_userRepository.findAll());

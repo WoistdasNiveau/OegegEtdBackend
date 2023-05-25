@@ -34,7 +34,7 @@ public interface IAuthService
 
 
     // == queries ==
-    AuthenticationResponse Authenticate(@GraphQLArgument(name="AuthenticationRequest") AuthenticationRequest request);
+    AuthenticationResponse Authenticate(@GraphQLArgument(name="AuthenticationRequest") AuthenticationRequest request) throws Exception;
     AuthenticationResponse ValidateToken(@GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
     List<UserResponse> GetAllUsers();
     UserResponse GetUser(@GraphQLArgument(name="nameEMailOrTelephoneNumber") String nameEmailOrTelephoneNumber);
