@@ -18,6 +18,7 @@ public interface IAuthService
 {
     // == mutations ==
     void CreateUser(@GraphQLArgument(name = "user") UserRequest user);
+    void DeleteUser(@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String nameEmailOrTelephoneNumber);
     FirstLoginResponse SetPassword(@GraphQLArgument(name="firstLoginRequest") FirstLoginRequest firstLoginRequest);
     void SetRole(@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber, @GraphQLArgument(name = "role") Role role);
 
@@ -42,6 +43,7 @@ public interface IAuthService
     // == queries ==
     AuthenticationResponse Authenticate(@GraphQLArgument(name="AuthenticationRequest") AuthenticationRequest request) throws Exception;
     AuthenticationResponse ValidateToken(@GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
+    void ResendEmail(@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String nameEmailOrTelephoneNumber);
     List<UserResponse> GetAllUsers();
     UserResponse GetUser(@GraphQLArgument(name="nameEMailOrTelephoneNumber") String nameEmailOrTelephoneNumber);
     AuthenticationResponse ValidateFirstLoginToken(@GraphQLArgument(name = "token") String token) throws Exception;

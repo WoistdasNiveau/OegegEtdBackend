@@ -60,26 +60,35 @@ public class AuthService implements IAuthService
     private final EmailSenderService _emailSenderService;
 
     // == mutations ==
-    @Override
-    @GraphQLMutation(name = "CreateUser")
-    @PreAuthorize("hasRole('ROLE_LEADER')")
-    public void CreateUser(@GraphQLArgument(name = "user") UserRequest user)
-    {
-        String pw = RandomStringUtils.random(15, true, false);
-        user.setPassword(pw);
-
-        UserEntity userEntity = UserRequestToEntity(user);
-        userEntity.setFirstLoginToken(pw);
-        userEntity.getRoles().add(Role.USER);
-        _userRepository.save(userEntity);
-
-        String token = _jwtService.GenerateToken(userEntity);
-
-        if(user.getEmail() != null || user.getEmail() != "")
+        @Override
+        @GraphQLMutation(name = "CreateUser")
+        @PreAuthorize("hasRole('ROLE_LEADER')")
+        public void CreateUser(@GraphQLArgument(name = "user") UserRequest user)
         {
-            _emailSenderService.SendSetPasswortMail("oliver01@kabsi.at",pw, user.getName());
+            String pw = RandomStringUtils.random(15, true, false);
+            user.setPassword(pw);
+
+            UserEntity userEntity = UserRequestToEntity(user);
+            userEntity.setFirstLoginToken(pw);
+            userEntity.getRoles().add(Role.USER);
+            _userRepository.save(userEntity);
+
+            String token = _jwtService.GenerateToken(userEntity);
+
+            if(user.getEmail() != null || user.getEmail() != "")
+            {
+                _emailSenderService.SendSetPasswortMail("oliver01@kabsi.at",pw, user.getName());
+            }
         }
-    }
+
+        @Override
+        @GraphQLMutation(name = "DeleteUser")
+        @PreAuthorize("hasRole('ROLE_ADMIN')")
+        public void DeleteUser(@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String nameEmailOrTelephoneNumber)
+        {
+            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(nameEmailOrTelephoneNumber).orElseThrow();
+            _userRepository.delete(user);
+        }
 
         @Override
         @GraphQLMutation(name = "SetRole")
@@ -149,7 +158,7 @@ public class AuthService implements IAuthService
                     .build();
         }
 
-        //@Override
+        @Override
         @GraphQLMutation(name = "ChangeName")
         @PreAuthorize("hasRole('ROLE_USER')")
         public void ChangeName (@GraphQLArgument(name = "telephoneNumberOrEmail") String
@@ -160,7 +169,7 @@ public class AuthService implements IAuthService
             _userRepository.save(user);
         }
 
-        //@Override
+        @Override
         @GraphQLMutation(name = "ChangePassword")
         @PreAuthorize("hasRole('ROLE_USER')")
         public AuthenticationResponse ChangePassword (@GraphQLArgument(name = "emailOrTelephoneNumber") String
@@ -272,6 +281,20 @@ public class AuthService implements IAuthService
         }
 
         @Override
+        @GraphQLQuery(name = "ResendEmail")
+        @PreAuthorize("hasRole('ROLE_LEADER')")
+        public void ResendEmail(@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String nameEmailOrTelephoneNumber)
+        {
+            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(nameEmailOrTelephoneNumber).orElseThrow();
+            if(!user.isEnabled())
+            {
+                if(user.getEmail() != null || user.getEmail() != "")
+                {
+                    _emailSenderService.SendSetPasswortMail("oliver01@kabsi.at",user.getFirstLoginToken(), user.getName());
+                }
+            }
+        }
+        @Override
         @GraphQLQuery(name = "GetAllUsers")
         @PreAuthorize("hasRole('ROLE_LEADER')")
         public List<UserResponse> GetAllUsers ()
@@ -325,6 +348,11 @@ public class AuthService implements IAuthService
 
         }
 
+        private void SendEmail(String message)
+        {
+
+        }
+
         private void InvalidateToken (String token)
         {
             TokenBlackList blacklisted = TokenBlackList.builder()
@@ -349,7 +377,8 @@ public class AuthService implements IAuthService
                     .createdVehiclesCount(_vehicleRepository.countAllByCreatedBy(user))
                     .updatedVehiclesCount(_vehicleRepository.countAllByUpdatedBy(user))
                     .updatedWorksCount(_workRepository.countAllByUpdatedBy(user))
-                    .roles(user.getRoles());
+                    .roles(user.getRoles())
+                    .isEnabled(user.isEnabled());
             return builder.build();
 
         }
@@ -363,7 +392,7 @@ public class AuthService implements IAuthService
                     .createdWorks(user.getCreatedWorks())
                     .createdVehicles(user.getCreatedVehicles())
                     .password(_passwordEncoder.encode(user.getPassword()))
-                    .roles(new ArrayList<>())
+                    .roles(user.getRoles() != null ? user.getRoles() : new ArrayList<>())
                     .build();
         }
 
