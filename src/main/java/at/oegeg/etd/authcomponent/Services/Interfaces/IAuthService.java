@@ -17,7 +17,7 @@ import java.util.List;
 public interface IAuthService
 {
     // == mutations ==
-    FirstLoginResponse CreateUser(@GraphQLArgument(name = "user") UserRequest user);
+    void CreateUser(@GraphQLArgument(name = "user") UserRequest user);
     FirstLoginResponse SetPassword(@GraphQLArgument(name="firstLoginRequest") FirstLoginRequest firstLoginRequest);
     void SetRole(@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber, @GraphQLArgument(name = "role") Role role);
 
@@ -35,10 +35,14 @@ public interface IAuthService
                                           @GraphQLArgument(name = "newPassword") String newPassword,
                                           @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env) throws Exception;
 
+    AuthenticationResponse ChangeInitialPassword(@GraphQLArgument(name= "token") String token,
+                                                 @GraphQLArgument(name = "password") String password) throws Exception;
+
 
     // == queries ==
     AuthenticationResponse Authenticate(@GraphQLArgument(name="AuthenticationRequest") AuthenticationRequest request) throws Exception;
     AuthenticationResponse ValidateToken(@GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
     List<UserResponse> GetAllUsers();
     UserResponse GetUser(@GraphQLArgument(name="nameEMailOrTelephoneNumber") String nameEmailOrTelephoneNumber);
+    AuthenticationResponse ValidateFirstLoginToken(@GraphQLArgument(name = "token") String token) throws Exception;
 }

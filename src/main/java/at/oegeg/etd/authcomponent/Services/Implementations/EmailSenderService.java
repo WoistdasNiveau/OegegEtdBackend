@@ -16,10 +16,10 @@ public class EmailSenderService
     public void SendSetPasswortMail(String email, String token, String name)
     {
         SimpleMailMessage message = new SimpleMailMessage();
-        String body = "Dear " + name + "!" + System.lineSeparator() +
+        String body = "Dear " + name + "!" + System.lineSeparator() + System.lineSeparator() +
                 "Your Group Leader has successfully created your OegegEtd Account. Please use following link to choose a " +
-                "password and activate your account." + System.lineSeparator() +
-                "http://localhost:8080/" + token.substring(7);
+                "password and activate your account." + System.lineSeparator() + System.lineSeparator() +
+                "https://localhost:7062/choosepassword/" + token;
 
         message.setFrom(SENDERMAIL);
         message.setTo(email);

@@ -63,12 +63,13 @@ public class AuthService implements IAuthService
     @Override
     @GraphQLMutation(name = "CreateUser")
     @PreAuthorize("hasRole('ROLE_LEADER')")
-    public FirstLoginResponse CreateUser(@GraphQLArgument(name = "user") UserRequest user)
+    public void CreateUser(@GraphQLArgument(name = "user") UserRequest user)
     {
-        String pw = RandomStringUtils.random(10, true, false);
+        String pw = RandomStringUtils.random(15, true, false);
         user.setPassword(pw);
 
         UserEntity userEntity = UserRequestToEntity(user);
+        userEntity.setFirstLoginToken(pw);
         userEntity.getRoles().add(Role.USER);
         _userRepository.save(userEntity);
 
@@ -76,18 +77,8 @@ public class AuthService implements IAuthService
 
         if(user.getEmail() != null || user.getEmail() != "")
         {
-            //String message = "Dear " + user.getName() + "!" + System.lineSeparator() +
-            //        "Your Group Leader successfully created your account. Please use following link to create a password for logging in. " + System.lineSeparator() +
-            //        "http://localhost:8080/" + token;
-
-            _emailSenderService.SendSetPasswortMail("oliver01@kabsi.at",token, user.getName());
+            _emailSenderService.SendSetPasswortMail("oliver01@kabsi.at",pw, user.getName());
         }
-
-        FirstLoginResponse response = FirstLoginResponse.builder()
-                .password(pw)
-                .token(token)
-                .build();
-        return response;
     }
 
         @Override
@@ -193,7 +184,29 @@ public class AuthService implements IAuthService
             }
             throw new Exception("telephone Numbers or Emails do not align");
         }
-        //@Override
+
+        @Override
+        @GraphQLMutation(name = "ChangeInitialPassword")
+        @PreAuthorize("hasRole('ROLE_ANONYMOUS')")
+        public AuthenticationResponse ChangeInitialPassword(@GraphQLArgument(name= "token") String token,
+                                                            @GraphQLArgument(name = "password") String password) throws Exception
+        {
+            UserEntity user = _userRepository.findByFirstLoginToken(token).orElseThrow();
+            if(!user.isEnabled())
+            {
+                user.setPassword(_passwordEncoder.encode(password));
+                user.setIsUserEnabled(true);
+                user.setFirstLoginToken("");
+                _userRepository.save(user);
+                String newToken = _jwtService.GenerateToken(user);
+                return AuthenticationResponse.builder()
+                        .token(newToken)
+                        .build();
+            }
+            throw new Exception("Could not set password");
+        }
+
+        @Override
         @GraphQLMutation(name = "SetPassword")
         @PreAuthorize("hasRole('ROLE_ANONYMOUS')")
         public FirstLoginResponse SetPassword (@GraphQLArgument(name = "firstLoginRequest") FirstLoginRequest
@@ -226,7 +239,7 @@ public class AuthService implements IAuthService
                     .build();
         }
 
-        //@Override
+        @Override
         @GraphQLQuery(name = "ValidateToken")
         @PreAuthorize("hasRole('ROLE_USER')")
         public AuthenticationResponse ValidateToken (@GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
@@ -237,10 +250,28 @@ public class AuthService implements IAuthService
             return AuthenticationResponse.builder()
                     .token(token)
                     .name(user.getName())
+                    .isEnabled(user.isEnabled())
                     .build();
         }
 
-        //@Override
+        @Override
+        @GraphQLQuery(name = "ValidateFirstLoginToken")
+        @PreAuthorize("hasRole('ROLE_ANONYMOUS')")
+        public AuthenticationResponse ValidateFirstLoginToken(@GraphQLArgument(name = "token") String token) throws Exception
+        {
+            UserEntity user = _userRepository.findByFirstLoginToken(token).orElseThrow();
+            if(!user.isEnabled())
+            {
+                return AuthenticationResponse.builder()
+                        .isEnabled(user.isEnabled())
+                        .token(token)
+                        .name(user.getName())
+                        .build();
+            }
+            throw new Exception("Token invalid");
+        }
+
+        @Override
         @GraphQLQuery(name = "GetAllUsers")
         @PreAuthorize("hasRole('ROLE_LEADER')")
         public List<UserResponse> GetAllUsers ()
@@ -249,7 +280,7 @@ public class AuthService implements IAuthService
             return response;
         }
 
-        //@Override
+        @Override
         @GraphQLQuery(name = "GetUser")
         @PreAuthorize("hasRole('ROLE_ADMIN')")
         public UserResponse GetUser (@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String
