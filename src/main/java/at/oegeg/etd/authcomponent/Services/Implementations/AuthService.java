@@ -37,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.ServletWebRequest;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -93,12 +94,38 @@ public class AuthService implements IAuthService
         @Override
         @GraphQLMutation(name = "SetRole")
         @PreAuthorize("hasAnyRole('ROLE_ADMIN')")
-        public void SetRole (@GraphQLArgument(name = "emailOrTelefoneNumber") String
-        emailOrTelefoneNumber, @GraphQLArgument(name = "role") Role role)
+        public AuthenticationResponse SetRole (@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber,
+                                               @GraphQLArgument(name = "roles") List<Role> roles,
+                                               @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
         {
             UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(emailOrTelefoneNumber).orElseThrow();
-            user.getRoles().add(role);
+            List<Role> userRoles = user.getRoles();
+            for(Role role : roles)
+            {
+                if(!user.getRoles().contains(role))
+                {
+                    user.getRoles().add(role);
+                }
+            }
+            Iterator<Role> iterator = user.getRoles().iterator();
+            while(iterator.hasNext())
+            {
+                Role r = iterator.next();
+                    if(!roles.contains(r))
+                    {
+                        iterator.remove();
+                    }
+            }
             _userRepository.save(user);
+
+            if(_userRepository.findByEmailOrTelephoneNumberOrName(_jwtService.ExtractUsername(env.getNativeRequest()
+                    .getHeader(AUTHORIZATIONHEADER).substring(7))).orElseThrow() == user)
+            {
+                return AuthenticationResponse.builder()
+                        .token(_jwtService.GenerateToken(user))
+                        .build();
+            }
+            return new AuthenticationResponse();
         }
 
         //@Override
@@ -130,10 +157,18 @@ public class AuthService implements IAuthService
             UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(oldEmail).orElseThrow();
             user.setEmail(newEmail);
             _userRepository.save(user);
+            String token;
 
-            InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
-
-            String token = _jwtService.GenerateToken(user);
+            if(user.getEmail() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7))||
+                    user.getTelephoneNumber() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7)))
+            {
+                InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
+                token = _jwtService.GenerateToken(user);
+            }
+            else
+            {
+                token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER);
+            }
             return AuthenticationResponse.builder()
                     .token(token)
                     .build();
@@ -141,18 +176,25 @@ public class AuthService implements IAuthService
         //@Override
         @GraphQLMutation(name = "ChangeTelephoneNumber")
         @PreAuthorize("hasRole('ROLE_USER')")
-        public AuthenticationResponse ChangeTelephohneNumber (@GraphQLArgument(name = "oldTelephoneNumber") String
-        oldTelephoneNumber,
+        public AuthenticationResponse ChangeTelephohneNumber (@GraphQLArgument(name = "oldTelephoneNumber") String oldTelephoneNumber,
                 @GraphQLArgument(name = "newTelephoneNumber") String newTelephoneNumber,
             @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
         {
             UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(oldTelephoneNumber).orElseThrow();
             user.setTelephoneNumber(newTelephoneNumber);
             _userRepository.save(user);
+            String token;
 
-            InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
-
-            String token = _jwtService.GenerateToken(user);
+            if(user.getEmail() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7))||
+                user.getTelephoneNumber() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7)))
+            {
+                InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
+                token = _jwtService.GenerateToken(user);
+            }
+            else
+            {
+                token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER);
+            }
             return AuthenticationResponse.builder()
                     .token(token)
                     .build();

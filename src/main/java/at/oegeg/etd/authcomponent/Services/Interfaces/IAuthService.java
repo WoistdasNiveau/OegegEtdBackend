@@ -20,7 +20,9 @@ public interface IAuthService
     void CreateUser(@GraphQLArgument(name = "user") UserRequest user);
     void DeleteUser(@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String nameEmailOrTelephoneNumber);
     FirstLoginResponse SetPassword(@GraphQLArgument(name="firstLoginRequest") FirstLoginRequest firstLoginRequest);
-    void SetRole(@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber, @GraphQLArgument(name = "role") Role role);
+    AuthenticationResponse SetRole (@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber,
+                                    @GraphQLArgument(name = "roles") List<Role> roles,
+                                    @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
 
     AuthenticationResponse RemoveRole(@GraphQLArgument(name = "emailOrTelephoneNumber") String emailOrTelephoneNumber,
                                       @GraphQLArgument(name = "role") Role role,
