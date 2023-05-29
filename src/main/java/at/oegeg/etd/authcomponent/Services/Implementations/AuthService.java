@@ -154,21 +154,38 @@ public class AuthService implements IAuthService
             @GraphQLArgument(name = "newEmail") String newEmail,
             @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
         {
+            String token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7);
+            UserEntity requestuser = _userRepository.findByEmailOrTelephoneNumberOrName(_jwtService.ExtractUsername(token)).orElseThrow();
             UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(oldEmail).orElseThrow();
-            user.setEmail(newEmail);
-            _userRepository.save(user);
-            String token;
 
-            if(user.getEmail() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7))||
-                    user.getTelephoneNumber() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7)))
+            boolean equals = requestuser.getUsername().equals(user.getUsername());
+
+            if(requestuser.getUsername().equals(user.getUsername()) || requestuser.getRoles().contains(Role.ADMIN))
             {
-                InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
+                user.setEmail(newEmail);
+                _userRepository.save(user);
+            }
+
+            if(equals)
+            {
+                InvalidateToken(token);
                 token = _jwtService.GenerateToken(user);
             }
-            else
-            {
-                token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER);
-            }
+
+
+            //user.setEmail(newEmail);
+            //_userRepository.save(user);
+//
+            //if(user.getEmail() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7))||
+            //        user.getTelephoneNumber() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7)))
+            //{
+            //    InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
+            //    token = _jwtService.GenerateToken(user);
+            //}
+            //else
+            //{
+            //    token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER);
+            //}
             return AuthenticationResponse.builder()
                     .token(token)
                     .build();
@@ -177,16 +194,25 @@ public class AuthService implements IAuthService
         @GraphQLMutation(name = "ChangeTelephoneNumber")
         @PreAuthorize("hasRole('ROLE_USER')")
         public AuthenticationResponse ChangeTelephohneNumber (@GraphQLArgument(name = "oldTelephoneNumber") String oldTelephoneNumber,
-                @GraphQLArgument(name = "newTelephoneNumber") String newTelephoneNumber,
-            @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
+                                                              @GraphQLArgument(name = "newTelephoneNumber") String newTelephoneNumber,
+                                                              @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
         {
+            UserEntity requestuser = _userRepository.findByEmailOrTelephoneNumberOrName(_jwtService.ExtractUsername(env
+                    .getNativeRequest().getHeader(AUTHORIZATIONHEADER.substring(7)))).orElseThrow();
             UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(oldTelephoneNumber).orElseThrow();
-            user.setTelephoneNumber(newTelephoneNumber);
-            _userRepository.save(user);
-            String token;
 
-            if(user.getEmail() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7))||
-                user.getTelephoneNumber() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7)))
+            boolean equal = (requestuser.getUsername() == user.getUsername());
+
+            if(equal || requestuser.getRoles().contains(Role.ADMIN))
+            {
+                user.setTelephoneNumber(newTelephoneNumber);
+                _userRepository.save(user);
+            }
+            //user.setTelephoneNumber(newTelephoneNumber);
+            //_userRepository.save(user);
+
+            String token;
+            if(equal)
             {
                 InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
                 token = _jwtService.GenerateToken(user);
@@ -195,6 +221,17 @@ public class AuthService implements IAuthService
             {
                 token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER);
             }
+
+            //if(user.getEmail() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7))||
+            //    user.getTelephoneNumber() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7)))
+            //{
+            //    InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
+            //    token = _jwtService.GenerateToken(user);
+            //}
+            //else
+            //{
+            //    token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER);
+            //}
             return AuthenticationResponse.builder()
                     .token(token)
                     .build();
@@ -203,11 +240,19 @@ public class AuthService implements IAuthService
         @Override
         @GraphQLMutation(name = "ChangeName")
         @PreAuthorize("hasRole('ROLE_USER')")
-        public void ChangeName (@GraphQLArgument(name = "telephoneNumberOrEmail") String
-        telephoneNumberOrEmail, @GraphQLArgument(name = "newName") String newName)
+        public void ChangeName (@GraphQLArgument(name = "telephoneNumberOrEmail") String telephoneNumberOrEmail,
+                                @GraphQLArgument(name = "newName") String newName,
+                                @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env )
         {
+            UserEntity requestUser = _userRepository.findByEmailOrTelephoneNumberOrName(_jwtService.ExtractUsername(env.getNativeRequest()
+                    .getHeader(AUTHORIZATIONHEADER).substring(7))).orElseThrow();
             UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(telephoneNumberOrEmail).orElseThrow();
-            user.setName(newName);
+
+            if(requestUser.getUsername().equals( user.getUsername()) || requestUser.getRoles().contains(Role.ADMIN))
+            {
+                user.setName(newName);
+                _userRepository.save(requestUser);
+            }
             _userRepository.save(user);
         }
 
@@ -377,13 +422,26 @@ public class AuthService implements IAuthService
             try
             {
                 UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName("oliver01@kabsi.at").orElseThrow();
+                if(!user.getRoles().contains(Role.USER))
+                {
+                    user.getRoles().add(Role.USER);
+                }
+                if(!user.getRoles().contains(Role.LEADER))
+                {
+                    user.getRoles().add(Role.LEADER);
+                }
+                if(!user.getRoles().contains(Role.ADMIN))
+                {
+                    user.getRoles().add(Role.ADMIN);
+                }
+                _userRepository.save(user);
             } catch (Exception ex)
             {
                 UserEntity user = UserEntity.builder()
                         .name("Oliver Stöckl")
                         .email("oliver01@kabsi.at")
                         .password(_passwordEncoder.encode("Passwort"))
-                        .roles(List.of(Role.valueOf(Role.ADMIN.name())))
+                        .roles(List.of(Role.valueOf(Role.ADMIN.name()),Role.valueOf(Role.LEADER.name()), Role.valueOf(Role.USER.name())))
                         .build();
                 _userRepository.save(user);
             }
@@ -419,7 +477,7 @@ public class AuthService implements IAuthService
                     .createdVehiclesCount(_vehicleRepository.countAllByCreatedBy(user))
                     .updatedVehiclesCount(_vehicleRepository.countAllByUpdatedBy(user))
                     .updatedWorksCount(_workRepository.countAllByUpdatedBy(user))
-                    .roles(user.getRoles())
+                    .roles(user.getRoles() != null && user.getRoles().stream().count() > 0 ? user.getRoles() : List.of(Role.valueOf(Role.USER.name())))
                     .isEnabled(user.isEnabled());
             return builder.build();
 
@@ -434,7 +492,7 @@ public class AuthService implements IAuthService
                     .createdWorks(user.getCreatedWorks())
                     .createdVehicles(user.getCreatedVehicles())
                     .password(_passwordEncoder.encode(user.getPassword()))
-                    .roles(user.getRoles() != null ? user.getRoles() : new ArrayList<>())
+                    .roles(user.getRoles() != null ? user.getRoles() : List.of(Role.valueOf(Role.USER.name())))
                     .build();
         }
 
@@ -449,7 +507,7 @@ public class AuthService implements IAuthService
                     .createdVehiclesCount(_vehicleRepository.countAllByCreatedBy(u))
                     .updatedVehiclesCount(_vehicleRepository.countAllByUpdatedBy(u))
                     .updatedWorksCount(_workRepository.countAllByUpdatedBy(u))
-                    .roles(u.getRoles())
+                    .roles(u.getRoles() != null && u.getRoles().stream().count() > 0 ? u.getRoles() : List.of(Role.valueOf(Role.USER.name())))
                     .build()).collect(Collectors.toList());
         }
 

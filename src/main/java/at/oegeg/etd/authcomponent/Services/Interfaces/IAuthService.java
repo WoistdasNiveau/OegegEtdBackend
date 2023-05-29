@@ -33,7 +33,9 @@ public interface IAuthService
     AuthenticationResponse ChangeTelephohneNumber(@GraphQLArgument(name = "oldTelephoneNumber") String oldTelephoneNumber,
                                                   @GraphQLArgument(name = "newTelephoneNumber") String newTelephoneNumber,
                                                   @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
-    void ChangeName(@GraphQLArgument(name = "telephoneNumberOrEmail") String telephoneNumberOrEmail, @GraphQLArgument(name = "newName") String newName);
+    void ChangeName (@GraphQLArgument(name = "telephoneNumberOrEmail") String telephoneNumberOrEmail,
+                     @GraphQLArgument(name = "newName") String newName,
+                     @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env );
     AuthenticationResponse ChangePassword(@GraphQLArgument(name = "emailOrTelephoneNumber") String emailOrTelephoneNumber,
                                           @GraphQLArgument(name = "newPassword") String newPassword,
                                           @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env) throws Exception;

@@ -36,6 +36,19 @@ public class JwtService
 
     public String GenerateToken(Map<String, Object> extraClaims, UserDetails userDetails)
     {
+        //JwtBuilder jwt = Jwts.builder()
+        //        .setClaims(extraClaims)
+        //        .setSubject(userDetails.getUsername())
+        //        .setIssuedAt(new Date(System.currentTimeMillis()))
+        //        .setExpiration(new Date(System.currentTimeMillis()+1000*60*60))
+        //        .signWith(GETSIGNINGKEY(), SignatureAlgorithm.HS256);
+//
+        //for(GrantedAuthority role : userDetails.getAuthorities())
+        //{
+        //    jwt.claim("Role",role);
+        //}
+        //String token = "Bearer " + jwt.compact();
+
         String token = "Bearer "+ Jwts
                     .builder()
                     .setClaims(extraClaims)
@@ -45,6 +58,7 @@ public class JwtService
                     .setExpiration(new Date(System.currentTimeMillis()+1000*60*60))
                     .signWith(GETSIGNINGKEY(), SignatureAlgorithm.HS256)
                     .compact();
+
         return token;
     }
 
