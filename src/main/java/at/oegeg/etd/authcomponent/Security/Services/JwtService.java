@@ -1,5 +1,6 @@
 package at.oegeg.etd.authcomponent.Security.Services;
 
+import at.oegeg.etd.sharedcomponent.Entities.UserEntity;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -29,12 +30,12 @@ public class JwtService
         return ClaimsResolver.apply(claims);
     }
 
-    public String GenerateToken(UserDetails userDetails)
+    public String GenerateToken(UserEntity userDetails)
     {
         return GenerateToken(new HashMap<>(),userDetails);
     }
 
-    public String GenerateToken(Map<String, Object> extraClaims, UserDetails userDetails)
+    public String GenerateToken(Map<String, Object> extraClaims, UserEntity userDetails)
     {
         //JwtBuilder jwt = Jwts.builder()
         //        .setClaims(extraClaims)

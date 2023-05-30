@@ -27,10 +27,10 @@ public interface IAuthService
     AuthenticationResponse RemoveRole(@GraphQLArgument(name = "emailOrTelephoneNumber") String emailOrTelephoneNumber,
                                       @GraphQLArgument(name = "role") Role role,
                                       @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
-    AuthenticationResponse ChangeEmail(@GraphQLArgument(name = "oldEmail") String oldEmail,
+    void ChangeEmail(@GraphQLArgument(name = "oldEmail") String oldEmail,
                                        @GraphQLArgument(name = "newEmail") String newEmail,
                                        @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
-    AuthenticationResponse ChangeTelephohneNumber(@GraphQLArgument(name = "oldTelephoneNumber") String oldTelephoneNumber,
+    void ChangeTelephohneNumber(@GraphQLArgument(name = "oldTelephoneNumber") String oldTelephoneNumber,
                                                   @GraphQLArgument(name = "newTelephoneNumber") String newTelephoneNumber,
                                                   @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
     void ChangeName (@GraphQLArgument(name = "telephoneNumberOrEmail") String telephoneNumberOrEmail,

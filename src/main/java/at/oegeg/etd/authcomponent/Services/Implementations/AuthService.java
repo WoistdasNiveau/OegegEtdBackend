@@ -28,7 +28,6 @@ import io.leangen.graphql.spqr.spring.annotations.GraphQLApi;
 import io.leangen.graphql.spqr.spring.autoconfigure.DefaultGlobalContext;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -66,40 +65,43 @@ public class AuthService implements IAuthService
         @PreAuthorize("hasRole('ROLE_LEADER')")
         public void CreateUser(@GraphQLArgument(name = "user") UserRequest user)
         {
-            String pw = RandomStringUtils.random(15, true, false);
-            user.setPassword(pw);
-
+            user.setPassword(UUID.randomUUID().toString());
             UserEntity userEntity = UserRequestToEntity(user);
-            userEntity.setFirstLoginToken(pw);
-            userEntity.getRoles().add(Role.USER);
+            if(!userEntity.getRoles().contains(Role.USER))
+            {
+                userEntity.getRoles().add(Role.USER);
+            }
+
             _userRepository.save(userEntity);
 
-            String token = _jwtService.GenerateToken(userEntity);
-
-            if(user.getEmail() != null || user.getEmail() != "")
+            if(userEntity.getEmail() != null && !userEntity.getEmail().equals(""))
             {
-                _emailSenderService.SendSetPasswortMail("oliver01@kabsi.at",pw, user.getName());
+                _emailSenderService.SendSetPasswortMail("oliver01@kabsi.at", userEntity.getUsername(), userEntity.getName());
             }
         }
 
         @Override
         @GraphQLMutation(name = "DeleteUser")
         @PreAuthorize("hasRole('ROLE_ADMIN')")
-        public void DeleteUser(@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String nameEmailOrTelephoneNumber)
+        public void DeleteUser(@GraphQLArgument(name = "identifier") String identifier)
         {
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(nameEmailOrTelephoneNumber).orElseThrow();
+            //UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(nameEmailOrTelephoneNumber).orElseThrow();
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
             _userRepository.delete(user);
         }
 
         @Override
         @GraphQLMutation(name = "SetRole")
         @PreAuthorize("hasAnyRole('ROLE_ADMIN')")
-        public AuthenticationResponse SetRole (@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber,
+        public AuthenticationResponse SetRole (@GraphQLArgument(name = "identifier") String identifier,
                                                @GraphQLArgument(name = "roles") List<Role> roles,
                                                @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
         {
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(emailOrTelefoneNumber).orElseThrow();
+            String token = ExtractToken(env);
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
+            UserEntity requestUser = _userRepository.findByIdentifier(_jwtService.ExtractUsername(token)).orElseThrow();
             List<Role> userRoles = user.getRoles();
+
             for(Role role : roles)
             {
                 if(!user.getRoles().contains(role))
@@ -118,8 +120,7 @@ public class AuthService implements IAuthService
             }
             _userRepository.save(user);
 
-            if(_userRepository.findByEmailOrTelephoneNumberOrName(_jwtService.ExtractUsername(env.getNativeRequest()
-                    .getHeader(AUTHORIZATIONHEADER).substring(7))).orElseThrow() == user)
+            if(requestUser == user)
             {
                 return AuthenticationResponse.builder()
                         .token(_jwtService.GenerateToken(user))
@@ -131,16 +132,16 @@ public class AuthService implements IAuthService
         //@Override
         @PreAuthorize("hasRole('ROLE_ADMIN')")
         @GraphQLMutation(name = "RemoveRole")
-        public AuthenticationResponse RemoveRole (@GraphQLArgument(name = "emailOrTelephoneNumber") String
-        emailOrTelephoneNumber,
-                @GraphQLArgument(name = "role") Role role,
-            @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
+        public AuthenticationResponse RemoveRole (@GraphQLArgument(name = "identifier") String identifier,
+                                                  @GraphQLArgument(name = "role") Role role,
+                                                  @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
         {
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(emailOrTelephoneNumber).orElseThrow();
+            String token = ExtractToken(env);
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
             user.getRoles().remove(role);
             _userRepository.save(user);
 
-            InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER));
+            InvalidateToken(token);
 
             return AuthenticationResponse.builder()
                     .token(_jwtService.GenerateToken(user))
@@ -150,14 +151,13 @@ public class AuthService implements IAuthService
         //@Override
         @GraphQLMutation(name = "ChangeEmail")
         @PreAuthorize("hasRole('ROLE_USER')")
-        public AuthenticationResponse ChangeEmail (@GraphQLArgument(name = "oldEmail") String oldEmail,
-            @GraphQLArgument(name = "newEmail") String newEmail,
-            @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
+        public void ChangeEmail (@GraphQLArgument(name = "identifier") String identifier,
+                                                   @GraphQLArgument(name = "newEmail") String newEmail,
+                                                   @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
         {
-            String token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7);
-            UserEntity requestuser = _userRepository.findByEmailOrTelephoneNumberOrName(_jwtService.ExtractUsername(token)).orElseThrow();
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(oldEmail).orElseThrow();
-
+            String token = ExtractToken(env);
+            UserEntity requestuser = _userRepository.findByIdentifier(_jwtService.ExtractUsername(token)).orElseThrow();
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
             boolean equals = requestuser.getUsername().equals(user.getUsername());
 
             if(requestuser.getUsername().equals(user.getUsername()) || requestuser.getRoles().contains(Role.ADMIN))
@@ -165,115 +165,62 @@ public class AuthService implements IAuthService
                 user.setEmail(newEmail);
                 _userRepository.save(user);
             }
-
-            if(equals)
-            {
-                InvalidateToken(token);
-                token = _jwtService.GenerateToken(user);
-            }
-
-
-            //user.setEmail(newEmail);
-            //_userRepository.save(user);
-//
-            //if(user.getEmail() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7))||
-            //        user.getTelephoneNumber() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7)))
-            //{
-            //    InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
-            //    token = _jwtService.GenerateToken(user);
-            //}
-            //else
-            //{
-            //    token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER);
-            //}
-            return AuthenticationResponse.builder()
-                    .token(token)
-                    .build();
         }
         //@Override
         @GraphQLMutation(name = "ChangeTelephoneNumber")
         @PreAuthorize("hasRole('ROLE_USER')")
-        public AuthenticationResponse ChangeTelephohneNumber (@GraphQLArgument(name = "oldTelephoneNumber") String oldTelephoneNumber,
+        public void ChangeTelephohneNumber (@GraphQLArgument(name = "identifier") String identifier,
                                                               @GraphQLArgument(name = "newTelephoneNumber") String newTelephoneNumber,
                                                               @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
         {
-            UserEntity requestuser = _userRepository.findByEmailOrTelephoneNumberOrName(_jwtService.ExtractUsername(env
-                    .getNativeRequest().getHeader(AUTHORIZATIONHEADER.substring(7)))).orElseThrow();
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(oldTelephoneNumber).orElseThrow();
+            String token = ExtractToken(env);
+            UserEntity requestuser = _userRepository.findByIdentifier(_jwtService.ExtractUsername(token)).orElseThrow();
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
 
-            boolean equal = (requestuser.getUsername() == user.getUsername());
+            boolean equal = (requestuser.getUsername().equals(user.getUsername()));
 
             if(equal || requestuser.getRoles().contains(Role.ADMIN))
             {
                 user.setTelephoneNumber(newTelephoneNumber);
                 _userRepository.save(user);
             }
-            //user.setTelephoneNumber(newTelephoneNumber);
-            //_userRepository.save(user);
-
-            String token;
-            if(equal)
-            {
-                InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
-                token = _jwtService.GenerateToken(user);
-            }
-            else
-            {
-                token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER);
-            }
-
-            //if(user.getEmail() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7))||
-            //    user.getTelephoneNumber() == _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7)))
-            //{
-            //    InvalidateToken(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
-            //    token = _jwtService.GenerateToken(user);
-            //}
-            //else
-            //{
-            //    token = env.getNativeRequest().getHeader(AUTHORIZATIONHEADER);
-            //}
-            return AuthenticationResponse.builder()
-                    .token(token)
-                    .build();
         }
 
         @Override
         @GraphQLMutation(name = "ChangeName")
         @PreAuthorize("hasRole('ROLE_USER')")
-        public void ChangeName (@GraphQLArgument(name = "telephoneNumberOrEmail") String telephoneNumberOrEmail,
+        public void ChangeName (@GraphQLArgument(name = "identifier") String identifier,
                                 @GraphQLArgument(name = "newName") String newName,
                                 @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env )
         {
-            UserEntity requestUser = _userRepository.findByEmailOrTelephoneNumberOrName(_jwtService.ExtractUsername(env.getNativeRequest()
-                    .getHeader(AUTHORIZATIONHEADER).substring(7))).orElseThrow();
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(telephoneNumberOrEmail).orElseThrow();
+            String token = ExtractToken(env);
+            UserEntity requestUser = _userRepository.findByIdentifier(_jwtService.ExtractUsername(token)).orElseThrow();
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
 
             if(requestUser.getUsername().equals( user.getUsername()) || requestUser.getRoles().contains(Role.ADMIN))
             {
                 user.setName(newName);
                 _userRepository.save(requestUser);
             }
-            _userRepository.save(user);
         }
 
         @Override
         @GraphQLMutation(name = "ChangePassword")
         @PreAuthorize("hasRole('ROLE_USER')")
-        public AuthenticationResponse ChangePassword (@GraphQLArgument(name = "emailOrTelephoneNumber") String
-        emailOrTelephoneNumber,
-                @GraphQLArgument(name = "newPassword") String newPassword,
-            @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env) throws Exception
+        public AuthenticationResponse ChangePassword (@GraphQLArgument(name = "identifier") String identifier,
+                                                      @GraphQLArgument(name = "newPassword") String newPassword,
+                                                      @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env) throws Exception
         {
-            String extracted = _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
-            if (extracted.equals(emailOrTelephoneNumber))
+            String token = ExtractToken(env);
+            UserEntity requestUser = _userRepository.findByIdentifier(_jwtService.ExtractUsername(token)).orElseThrow();
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
+            if (requestUser.getUsername().equals(user.getUsername()))
             {
-                UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(emailOrTelephoneNumber).orElseThrow();
                 user.setPassword(_passwordEncoder.encode(newPassword));
                 _userRepository.save(user);
 
-                InvalidateToken(extracted);
-
-                String token = _jwtService.GenerateToken(user);
+                InvalidateToken(token);
+                token = _jwtService.GenerateToken(user);
                 return AuthenticationResponse.builder()
                         .token(token)
                         .build();
@@ -284,15 +231,14 @@ public class AuthService implements IAuthService
         @Override
         @GraphQLMutation(name = "ChangeInitialPassword")
         @PreAuthorize("hasRole('ROLE_ANONYMOUS')")
-        public AuthenticationResponse ChangeInitialPassword(@GraphQLArgument(name= "token") String token,
+        public AuthenticationResponse ChangeInitialPassword(@GraphQLArgument(name= "identifier") String identifier,
                                                             @GraphQLArgument(name = "password") String password) throws Exception
         {
-            UserEntity user = _userRepository.findByFirstLoginToken(token).orElseThrow();
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
             if(!user.isEnabled())
             {
                 user.setPassword(_passwordEncoder.encode(password));
                 user.setIsUserEnabled(true);
-                user.setFirstLoginToken("");
                 _userRepository.save(user);
                 String newToken = _jwtService.GenerateToken(user);
                 return AuthenticationResponse.builder()
@@ -305,14 +251,15 @@ public class AuthService implements IAuthService
         @Override
         @GraphQLMutation(name = "SetPassword")
         @PreAuthorize("hasRole('ROLE_ANONYMOUS')")
-        public FirstLoginResponse SetPassword (@GraphQLArgument(name = "firstLoginRequest") FirstLoginRequest
-        firstLoginRequest)
+        public FirstLoginResponse SetPassword (@GraphQLArgument(name = "firstLoginRequest") FirstLoginRequest firstLoginRequest)
         {
-            String username = _jwtService.ExtractUsername(firstLoginRequest.getToken().substring(7));
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(username).orElseThrow();
+            String identifier = _jwtService.ExtractUsername(firstLoginRequest.getToken().substring(7));
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
+
             user.setPassword(_passwordEncoder.encode(firstLoginRequest.getPassword()));
             user.setIsUserEnabled(true);
             _userRepository.save(user);
+
             return FirstLoginResponse.builder()
                     .token(_jwtService.GenerateToken(user))
                     .build();
@@ -322,16 +269,17 @@ public class AuthService implements IAuthService
         //@Override
         @GraphQLQuery(name = "Authenticate")
         @PreAuthorize("hasRole('ROLE_ANONYMOUS')")
-        public AuthenticationResponse Authenticate
-        (@GraphQLArgument(name = "AuthenticationRequest") AuthenticationRequest request)
+        public AuthenticationResponse Authenticate (@GraphQLArgument(name = "AuthenticationRequest") AuthenticationRequest request)
         {
-            _authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
-
             UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(request.getEmail()).orElseThrow();
+            _authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(user.getIdentifier(), request.getPassword()));
+
+            //UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(request.getEmail()).orElseThrow(); //must exist for this method
             String token = _jwtService.GenerateToken(user);
             return AuthenticationResponse.builder()
                     .token(token)
                     .name(user.getName())
+                    .identifier(user.getIdentifier())
                     .build();
         }
 
@@ -340,9 +288,10 @@ public class AuthService implements IAuthService
         @PreAuthorize("hasRole('ROLE_USER')")
         public AuthenticationResponse ValidateToken (@GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
         {
-            String username = _jwtService.ExtractUsername(env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7));
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(username).orElseThrow();
-            String token = _jwtService.GenerateToken(user);
+            String token = ExtractToken(env);
+            UserEntity user = _userRepository.findByIdentifier(_jwtService.ExtractUsername(token)).orElseThrow();
+
+            token = _jwtService.GenerateToken(user);
             return AuthenticationResponse.builder()
                     .token(token)
                     .name(user.getName())
@@ -353,14 +302,14 @@ public class AuthService implements IAuthService
         @Override
         @GraphQLQuery(name = "ValidateFirstLoginToken")
         @PreAuthorize("hasRole('ROLE_ANONYMOUS')")
-        public AuthenticationResponse ValidateFirstLoginToken(@GraphQLArgument(name = "token") String token) throws Exception
+        public AuthenticationResponse ValidateFirstLoginToken(@GraphQLArgument(name = "identifier") String identifier) throws Exception
         {
-            UserEntity user = _userRepository.findByFirstLoginToken(token).orElseThrow();
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
             if(!user.isEnabled())
             {
                 return AuthenticationResponse.builder()
                         .isEnabled(user.isEnabled())
-                        .token(token)
+                        .token(identifier)
                         .name(user.getName())
                         .build();
             }
@@ -370,14 +319,14 @@ public class AuthService implements IAuthService
         @Override
         @GraphQLQuery(name = "ResendEmail")
         @PreAuthorize("hasRole('ROLE_LEADER')")
-        public void ResendEmail(@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String nameEmailOrTelephoneNumber)
+        public void ResendEmail(@GraphQLArgument(name = "identifier") String identifier)
         {
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(nameEmailOrTelephoneNumber).orElseThrow();
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
             if(!user.isEnabled())
             {
                 if(user.getEmail() != null || user.getEmail() != "")
                 {
-                    _emailSenderService.SendSetPasswortMail("oliver01@kabsi.at",user.getFirstLoginToken(), user.getName());
+                    _emailSenderService.SendSetPasswortMail("oliver01@kabsi.at",user.getIdentifier(), user.getName());
                 }
             }
         }
@@ -393,10 +342,10 @@ public class AuthService implements IAuthService
         @Override
         @GraphQLQuery(name = "GetUser")
         @PreAuthorize("hasRole('ROLE_ADMIN')")
-        public UserResponse GetUser (@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String
-        nameEmailOrTelephoneNumber)
+        public UserResponse GetUser (@GraphQLArgument(name = "identifier") String identifier)
         {
-            UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(nameEmailOrTelephoneNumber).orElseThrow();
+            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
+
             UserResponse response = UserEntityToResponse(user);
             return response;
         }
@@ -438,8 +387,10 @@ public class AuthService implements IAuthService
             } catch (Exception ex)
             {
                 UserEntity user = UserEntity.builder()
+                        .identifier(UUID.randomUUID().toString())
                         .name("Oliver Stöckl")
                         .email("oliver01@kabsi.at")
+                        .IsUserEnabled(true)
                         .password(_passwordEncoder.encode("Passwort"))
                         .roles(List.of(Role.valueOf(Role.ADMIN.name()),Role.valueOf(Role.LEADER.name()), Role.valueOf(Role.USER.name())))
                         .build();
@@ -448,9 +399,9 @@ public class AuthService implements IAuthService
 
         }
 
-        private void SendEmail(String message)
+        private String ExtractToken(DefaultGlobalContext < ServletWebRequest > env)
         {
-
+            return env.getNativeRequest().getHeader(AUTHORIZATIONHEADER).substring(7);
         }
 
         private void InvalidateToken (String token)
@@ -464,6 +415,7 @@ public class AuthService implements IAuthService
         private UserResponse UserEntityToResponse (UserEntity user)
         {
             UserResponse.UserResponseBuilder builder = UserResponse.builder()
+                    .identifier(user.getIdentifier())
                     .name(user.getName())
                     .email(user.getEmail())
                     .telephoneNumber(user.getTelephoneNumber())
@@ -485,9 +437,10 @@ public class AuthService implements IAuthService
         private UserEntity UserRequestToEntity (UserRequest user)
         {
             return UserEntity.builder()
+                    .identifier(user.getPassword())
                     .name(user.getName())
-                    .email(user.getEmail())
-                    .telephoneNumber(user.getTelephoneNumber())
+                    .email(user.getEmail() != null && !user.getEmail().equals("") ? user.getEmail() : null)
+                    .telephoneNumber(user.getTelephoneNumber() != null && !user.getTelephoneNumber().equals("") ? user.getTelephoneNumber() : null)
                     .responsibleFor(user.getResponsibleFor())
                     .createdWorks(user.getCreatedWorks())
                     .createdVehicles(user.getCreatedVehicles())
@@ -499,6 +452,7 @@ public class AuthService implements IAuthService
         private List<UserResponse> UserEntitiesToResponses (List < UserEntity > users)
         {
             return users.stream().map(u -> UserResponse.builder()
+                    .identifier(u.getIdentifier())
                     .name(u.getName())
                     .email(u.getEmail())
                     .telephoneNumber(u.getTelephoneNumber())
@@ -538,7 +492,7 @@ public class AuthService implements IAuthService
             {
                 try
                 {
-                    UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName(request.getResponsiblePersonEmailOrTelephoneNumber()).orElseThrow();
+                    UserEntity user = _userRepository.findByIdentifier(request.getResponsiblePersonIdentifier()).orElseThrow();
                     works.add(WorkEntity.builder()
                             .responsiblePerson(user)
                             .description(request.getDescription())

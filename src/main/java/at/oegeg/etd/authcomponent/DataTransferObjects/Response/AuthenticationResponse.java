@@ -13,5 +13,6 @@ public class AuthenticationResponse
 {
     private String token;
     private String name;
+    private String identifier;
     private boolean isEnabled;
 }
