@@ -36,7 +36,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.ServletWebRequest;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -62,15 +61,11 @@ public class AuthService implements IAuthService
     // == mutations ==
         @Override
         @GraphQLMutation(name = "CreateUser")
-        @PreAuthorize("hasRole('ROLE_LEADER')")
+        @PreAuthorize("hasAnyRole('ROLE_LEADER','ROLE_ADMIN')")
         public void CreateUser(@GraphQLArgument(name = "user") UserRequest user)
         {
             user.setPassword(UUID.randomUUID().toString());
             UserEntity userEntity = UserRequestToEntity(user);
-            if(!userEntity.getRoles().contains(Role.USER))
-            {
-                userEntity.getRoles().add(Role.USER);
-            }
 
             _userRepository.save(userEntity);
 
@@ -94,30 +89,31 @@ public class AuthService implements IAuthService
         @GraphQLMutation(name = "SetRole")
         @PreAuthorize("hasAnyRole('ROLE_ADMIN')")
         public AuthenticationResponse SetRole (@GraphQLArgument(name = "identifier") String identifier,
-                                               @GraphQLArgument(name = "roles") List<Role> roles,
+                                               @GraphQLArgument(name = "role") Role role,
                                                @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
         {
             String token = ExtractToken(env);
             UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
             UserEntity requestUser = _userRepository.findByIdentifier(_jwtService.ExtractUsername(token)).orElseThrow();
-            List<Role> userRoles = user.getRoles();
+            //List<Role> userRoles = user.getRole();
 
-            for(Role role : roles)
-            {
-                if(!user.getRoles().contains(role))
-                {
-                    user.getRoles().add(role);
-                }
-            }
-            Iterator<Role> iterator = user.getRoles().iterator();
-            while(iterator.hasNext())
-            {
-                Role r = iterator.next();
-                    if(!roles.contains(r))
-                    {
-                        iterator.remove();
-                    }
-            }
+            //for(Role role : roles)
+            //{
+            //    if(!user.getRole().contains(role))
+            //    {
+            //        user.getRole().add(role);
+            //    }
+            //}
+            //Iterator<Role> iterator = user.getRole().iterator();
+            //while(iterator.hasNext())
+            //{
+            //    Role r = iterator.next();
+            //        if(!roles.contains(r))
+            //        {
+            //            iterator.remove();
+            //        }
+            //}
+            user.setRole(role);
             _userRepository.save(user);
 
             if(requestUser == user)
@@ -129,28 +125,30 @@ public class AuthService implements IAuthService
             return new AuthenticationResponse();
         }
 
-        //@Override
-        @PreAuthorize("hasRole('ROLE_ADMIN')")
-        @GraphQLMutation(name = "RemoveRole")
-        public AuthenticationResponse RemoveRole (@GraphQLArgument(name = "identifier") String identifier,
-                                                  @GraphQLArgument(name = "role") Role role,
-                                                  @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
-        {
-            String token = ExtractToken(env);
-            UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
-            user.getRoles().remove(role);
-            _userRepository.save(user);
-
-            InvalidateToken(token);
-
-            return AuthenticationResponse.builder()
-                    .token(_jwtService.GenerateToken(user))
-                    .build();
-        }
 
         //@Override
+        //@Deprecated
+        //@PreAuthorize("hasRole('ROLE_ADMIN')")
+        //@GraphQLMutation(name = "RemoveRole")
+        //public AuthenticationResponse RemoveRole (@GraphQLArgument(name = "identifier") String identifier,
+        //                                          @GraphQLArgument(name = "role") Role role,
+        //                                          @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env)
+        //{
+        //    String token = ExtractToken(env);
+        //    UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
+        //    user.getRole().remove(role);
+        //    _userRepository.save(user);
+//
+        //    InvalidateToken(token);
+//
+        //    return AuthenticationResponse.builder()
+        //            .token(_jwtService.GenerateToken(user))
+        //            .build();
+        //}
+
+        @Override
         @GraphQLMutation(name = "ChangeEmail")
-        @PreAuthorize("hasRole('ROLE_USER')")
+        @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_LEADER','ROLE_ADMIN')")
         public void ChangeEmail (@GraphQLArgument(name = "identifier") String identifier,
                                                    @GraphQLArgument(name = "newEmail") String newEmail,
                                                    @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
@@ -160,15 +158,15 @@ public class AuthService implements IAuthService
             UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
             boolean equals = requestuser.getUsername().equals(user.getUsername());
 
-            if(requestuser.getUsername().equals(user.getUsername()) || requestuser.getRoles().contains(Role.ADMIN))
+            if(requestuser.getUsername().equals(user.getUsername()) || requestuser.getRole() == Role.ADMIN)
             {
                 user.setEmail(newEmail);
                 _userRepository.save(user);
             }
         }
-        //@Override
+        @Override
         @GraphQLMutation(name = "ChangeTelephoneNumber")
-        @PreAuthorize("hasRole('ROLE_USER')")
+        @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_LEADER','ROLE_ADMIN')")
         public void ChangeTelephohneNumber (@GraphQLArgument(name = "identifier") String identifier,
                                                               @GraphQLArgument(name = "newTelephoneNumber") String newTelephoneNumber,
                                                               @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
@@ -179,7 +177,7 @@ public class AuthService implements IAuthService
 
             boolean equal = (requestuser.getUsername().equals(user.getUsername()));
 
-            if(equal || requestuser.getRoles().contains(Role.ADMIN))
+            if(equal || requestuser.getRole() == Role.ADMIN)
             {
                 user.setTelephoneNumber(newTelephoneNumber);
                 _userRepository.save(user);
@@ -188,7 +186,7 @@ public class AuthService implements IAuthService
 
         @Override
         @GraphQLMutation(name = "ChangeName")
-        @PreAuthorize("hasRole('ROLE_USER')")
+        @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_LEADER','ROLE_ADMIN')")
         public void ChangeName (@GraphQLArgument(name = "identifier") String identifier,
                                 @GraphQLArgument(name = "newName") String newName,
                                 @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env )
@@ -197,7 +195,7 @@ public class AuthService implements IAuthService
             UserEntity requestUser = _userRepository.findByIdentifier(_jwtService.ExtractUsername(token)).orElseThrow();
             UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
 
-            if(requestUser.getUsername().equals( user.getUsername()) || requestUser.getRoles().contains(Role.ADMIN))
+            if(requestUser.getUsername().equals( user.getUsername()) || requestUser.getRole() == Role.ADMIN)
             {
                 user.setName(newName);
                 _userRepository.save(requestUser);
@@ -206,7 +204,7 @@ public class AuthService implements IAuthService
 
         @Override
         @GraphQLMutation(name = "ChangePassword")
-        @PreAuthorize("hasRole('ROLE_USER')")
+        @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_LEADER','ROLE_ADMIN')")
         public AuthenticationResponse ChangePassword (@GraphQLArgument(name = "identifier") String identifier,
                                                       @GraphQLArgument(name = "newPassword") String newPassword,
                                                       @GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env) throws Exception
@@ -266,7 +264,7 @@ public class AuthService implements IAuthService
         }
 
         // == queries ==
-        //@Override
+        @Override
         @GraphQLQuery(name = "Authenticate")
         @PreAuthorize("hasRole('ROLE_ANONYMOUS')")
         public AuthenticationResponse Authenticate (@GraphQLArgument(name = "AuthenticationRequest") AuthenticationRequest request)
@@ -285,7 +283,7 @@ public class AuthService implements IAuthService
 
         @Override
         @GraphQLQuery(name = "ValidateToken")
-        @PreAuthorize("hasRole('ROLE_USER')")
+        @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_LEADER','ROLE_ADMIN')")
         public AuthenticationResponse ValidateToken (@GraphQLRootContext DefaultGlobalContext < ServletWebRequest > env)
         {
             String token = ExtractToken(env);
@@ -318,7 +316,7 @@ public class AuthService implements IAuthService
 
         @Override
         @GraphQLQuery(name = "ResendEmail")
-        @PreAuthorize("hasRole('ROLE_LEADER')")
+        @PreAuthorize("hasAnyRole('ROLE_LEADER','ROLE_ADMIN')")
         public void ResendEmail(@GraphQLArgument(name = "identifier") String identifier)
         {
             UserEntity user = _userRepository.findByIdentifier(identifier).orElseThrow();
@@ -332,7 +330,7 @@ public class AuthService implements IAuthService
         }
         @Override
         @GraphQLQuery(name = "GetAllUsers")
-        @PreAuthorize("hasRole('ROLE_LEADER')")
+        @PreAuthorize("hasAnyRole('ROLE_LEADER','ROLE_ADMIN')")
         public List<UserResponse> GetAllUsers ()
         {
             List<UserResponse> response = UserEntitiesToResponses(_userRepository.findAll());
@@ -371,18 +369,18 @@ public class AuthService implements IAuthService
             try
             {
                 UserEntity user = _userRepository.findByEmailOrTelephoneNumberOrName("oliver01@kabsi.at").orElseThrow();
-                if(!user.getRoles().contains(Role.USER))
-                {
-                    user.getRoles().add(Role.USER);
-                }
-                if(!user.getRoles().contains(Role.LEADER))
-                {
-                    user.getRoles().add(Role.LEADER);
-                }
-                if(!user.getRoles().contains(Role.ADMIN))
-                {
-                    user.getRoles().add(Role.ADMIN);
-                }
+                //if(!user.getRole().contains(Role.USER))
+                //{
+                //    user.getRole().add(Role.USER);
+                //}
+                //if(!user.getRole().contains(Role.LEADER))
+                //{
+                //    user.getRole().add(Role.LEADER);
+                //}
+                //if(!user.getRole().contains(Role.ADMIN))
+                //{
+                //    user.getRole().add(Role.ADMIN);
+                //}
                 _userRepository.save(user);
             } catch (Exception ex)
             {
@@ -392,7 +390,7 @@ public class AuthService implements IAuthService
                         .email("oliver01@kabsi.at")
                         .IsUserEnabled(true)
                         .password(_passwordEncoder.encode("Passwort"))
-                        .roles(List.of(Role.valueOf(Role.ADMIN.name()),Role.valueOf(Role.LEADER.name()), Role.valueOf(Role.USER.name())))
+                        .role(Role.ADMIN)
                         .build();
                 _userRepository.save(user);
             }
@@ -429,7 +427,7 @@ public class AuthService implements IAuthService
                     .createdVehiclesCount(_vehicleRepository.countAllByCreatedBy(user))
                     .updatedVehiclesCount(_vehicleRepository.countAllByUpdatedBy(user))
                     .updatedWorksCount(_workRepository.countAllByUpdatedBy(user))
-                    .roles(user.getRoles() != null && user.getRoles().stream().count() > 0 ? user.getRoles() : List.of(Role.valueOf(Role.USER.name())))
+                    .role(user.getRole() != null ? user.getRole() : Role.USER)
                     .isEnabled(user.isEnabled());
             return builder.build();
 
@@ -445,7 +443,7 @@ public class AuthService implements IAuthService
                     .createdWorks(user.getCreatedWorks())
                     .createdVehicles(user.getCreatedVehicles())
                     .password(_passwordEncoder.encode(user.getPassword()))
-                    .roles(user.getRoles() != null ? user.getRoles() : List.of(Role.valueOf(Role.USER.name())))
+                    .role(user.getRole() != null ? user.getRole() : Role.USER)
                     .build();
         }
 
@@ -461,7 +459,7 @@ public class AuthService implements IAuthService
                     .createdVehiclesCount(_vehicleRepository.countAllByCreatedBy(u))
                     .updatedVehiclesCount(_vehicleRepository.countAllByUpdatedBy(u))
                     .updatedWorksCount(_workRepository.countAllByUpdatedBy(u))
-                    .roles(u.getRoles() != null && u.getRoles().stream().count() > 0 ? u.getRoles() : List.of(Role.valueOf(Role.USER.name())))
+                    .role(u.getRole() != null ? u.getRole() : Role.USER)
                     .build()).collect(Collectors.toList());
         }
 
@@ -490,23 +488,13 @@ public class AuthService implements IAuthService
             List<WorkEntity> works = new ArrayList<WorkEntity>();
             for (WorkRequest request : requests)
             {
-                try
-                {
-                    UserEntity user = _userRepository.findByIdentifier(request.getResponsiblePersonIdentifier()).orElseThrow();
-                    works.add(WorkEntity.builder()
-                            .responsiblePerson(user)
-                            .description(request.getDescription())
-                            .priority(request.getPriority())
-                            .identifier(UUID.randomUUID())
-                            .build());
-                } catch (Exception ex)
-                {
-                    works.add(WorkEntity.builder()
-                            .description(request.getDescription())
-                            .priority(request.getPriority())
-                            .identifier(UUID.randomUUID())
-                            .build());
-                }
+                UserEntity user = _userRepository.findByIdentifier(request.getResponsiblePersonIdentifier()).orElse(null);
+                works.add(WorkEntity.builder()
+                        .responsiblePerson(user)
+                        .description(request.getDescription())
+                        .priority(request.getPriority())
+                        .identifier(UUID.randomUUID().toString())
+                        .build());
             }
             return works;
         }

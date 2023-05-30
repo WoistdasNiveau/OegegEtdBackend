@@ -20,13 +20,13 @@ public interface IAuthService
     void CreateUser(@GraphQLArgument(name = "user") UserRequest user);
     void DeleteUser(@GraphQLArgument(name = "nameEmailOrTelephoneNumber") String nameEmailOrTelephoneNumber);
     FirstLoginResponse SetPassword(@GraphQLArgument(name="firstLoginRequest") FirstLoginRequest firstLoginRequest);
-    AuthenticationResponse SetRole (@GraphQLArgument(name = "emailOrTelefoneNumber") String emailOrTelefoneNumber,
-                                    @GraphQLArgument(name = "roles") List<Role> roles,
+    AuthenticationResponse SetRole (@GraphQLArgument(name = "identifier") String identifier,
+                                    @GraphQLArgument(name = "role") Role role,
                                     @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
 
-    AuthenticationResponse RemoveRole(@GraphQLArgument(name = "emailOrTelephoneNumber") String emailOrTelephoneNumber,
-                                      @GraphQLArgument(name = "role") Role role,
-                                      @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
+    //AuthenticationResponse RemoveRole(@GraphQLArgument(name = "emailOrTelephoneNumber") String emailOrTelephoneNumber,
+    //                                  @GraphQLArgument(name = "role") Role role,
+    //                                  @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
     void ChangeEmail(@GraphQLArgument(name = "oldEmail") String oldEmail,
                                        @GraphQLArgument(name = "newEmail") String newEmail,
                                        @GraphQLRootContext DefaultGlobalContext<ServletWebRequest> env);
